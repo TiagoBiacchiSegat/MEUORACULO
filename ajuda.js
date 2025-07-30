@@ -1,0 +1,233 @@
+import React, { useState } from 'react';
+
+// Componente principal do aplicativo de Tarot
+function App() {
+  // Estado para armazenar a mensagem da inteligência artificial
+  const [aiMessage, setAiMessage] = useState('');
+  // Estado para controlar o carregamento da resposta da IA
+  const [isLoading, setIsLoading] = useState(false);
+  // Estado para armazenar mensagens de erro
+  const [error, setError] = useState('');
+
+  // Nomes das cartas de Tarot para simulação
+  // Em um aplicativo real, você poderia ter mais detalhes ou imagens para cada carta.
+  const tarotCards = [
+    { name: 'Os Amantes', description: 'Escolhas, harmonia, relacionamentos.' },
+    { name: 'O Hierofante', description: 'Tradição, sabedoria, orientação espiritual.' },
+    { name: 'O Imperador', description: 'Autoridade, estrutura, controle.' },
+  ];
+
+  // Função para simular a seleção de cartas aleatórias
+  // Em um jogo real, a seleção poderia ser interativa.
+  const getRandomCards = () => {
+    const shuffled = [...tarotCards].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, 3); // Seleciona 3 cartas aleatoriamente
+  };
+
+  // Função assíncrona para consultar a API do Gemini
+  const consultOracle = async () => {
+    setIsLoading(true); // Ativa o estado de carregamento
+    setAiMessage('');    // Limpa a mensagem anterior
+    setError('');        // Limpa qualquer erro anterior
+
+    const selectedCards = getRandomCards();
+    // Cria o prompt para a IA, pedindo uma interpretação das cartas selecionadas
+    const prompt = `Interprete estas três cartas de Tarot para uma pessoa criativa, autista e disléxica, com uma linguagem clara, objetiva, mas com alma, misturando leveza, poesia e lógica. As cartas são: ${selectedCards[0].name}, ${selectedCards[1].name}, e ${selectedCards[2].name}. Fale sobre o significado geral e como elas se conectam para oferecer um conselho ou reflexão.`;
+
+    // Configuração do payload para a chamada da API
+    const payload = {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: "text/plain", // Esperamos uma resposta de texto simples
+      }
+    };
+
+    // A chave da API é fornecida automaticamente pelo ambiente Canvas
+    const apiKey = "";
+    // URL da API do Gemini para geração de conteúdo
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+    // Tenta fazer a chamada da API com tratamento de erros e retentativas
+    let retries = 0;
+    const maxRetries = 3;
+    const baseDelay = 1000; // 1 segundo
+
+    while (retries < maxRetries) {
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        // Verifica se a resposta da rede foi bem-sucedida
+        if (!response.ok) {
+          throw new Error(`Erro HTTP: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        // Verifica se a resposta da IA contém o texto esperado
+        if (result.candidates && result.candidates.length > 0 &&
+            result.candidates[0].content && result.candidates[0].content.parts &&
+            result.candidates[0].content.parts.length > 0) {
+          setAiMessage(result.candidates[0].content.parts[0].text);
+          break; // Sai do loop se a chamada for bem-sucedida
+        } else {
+          throw new Error('Resposta da API inesperada ou vazia.');
+        }
+      } catch (err) {
+        console.error('Erro ao consultar o oráculo:', err);
+        setError(`Houve um erro ao contatar o oráculo: ${err.message}. Tentando novamente...`);
+        retries++;
+        if (retries < maxRetries) {
+          await new Promise(res => setTimeout(res, baseDelay * Math.pow(2, retries - 1))); // Atraso exponencial
+        } else {
+          setError('Não foi possível contatar o oráculo após várias tentativas. Por favor, verifique sua conexão e tente novamente.');
+        }
+      } finally {
+        setIsLoading(false); // Desativa o carregamento ao final da tentativa
+      }
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-800 to-indigo-900 text-white flex flex-col items-center justify-center p-4">
+      <script src="https://cdn.tailwindcss.com"></script>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+
+      <style>
+        {`
+          body {
+            font-family: 'Inter', sans-serif;
+          }
+          .card-container {
+            perspective: 1000px;
+          }
+          .card {
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+          }
+          .card:hover {
+            transform: translateY(-10px) rotateY(5deg);
+          }
+          .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+          }
+          .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden; /* Safari */
+            backface-visibility: hidden;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: white;
+            padding: 1rem;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+          }
+          .card-front {
+            background: linear-gradient(135deg, #6b46c1, #805ad5);
+          }
+          .card-back {
+            background: linear-gradient(135deg, #4c3d8e, #6a5acd);
+            transform: rotateY(180deg);
+          }
+          .loading-spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+          }
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}
+      </style>
+
+      <h1 className="text-4xl md:text-5xl font-bold mb-8 text-center drop-shadow-lg">
+        Seu Oráculo de Tarot
+      </h1>
+
+      {/* Seção das cartas de Tarot */}
+      <div className="flex flex-wrap justify-center gap-6 mb-10">
+        {tarotCards.map((card, index) => (
+          <div key={index} className="card-container w-40 h-60 md:w-48 md:h-72 rounded-xl shadow-xl transform hover:scale-105 transition-transform duration-300">
+            <div className="card">
+              <div className="card-front">
+                {/* Placeholder para a imagem da carta */}
+                <img
+                  src={`https://placehold.co/120x180/6b46c1/ffffff?text=${card.name.replace(/ /g, '+')}`}
+                  alt={card.name}
+                  className="rounded-lg shadow-md"
+                  onError={(e) => { e.target.onerror = null; e.target.src = `https://placehold.co/120x180/6b46c1/ffffff?text=Carta+${index + 1}`; }}
+                />
+              </div>
+              {/* Você pode adicionar um verso da carta se quiser */}
+              {/* <div className="card-back">
+                Verso da Carta
+              </div> */}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Botão para consultar o oráculo */}
+      <button
+        onClick={consultOracle}
+        disabled={isLoading}
+        className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transform transition-all duration-300 ease-in-out
+                   hover:scale-105 hover:shadow-2xl focus:outline-none focus:ring-4 focus:ring-purple-500 focus:ring-opacity-75
+                   disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+      >
+        {isLoading && <div className="loading-spinner w-5 h-5 border-white border-t-transparent animate-spin"></div>}
+        {isLoading ? 'Consultando...' : 'Consultar o Oráculo'}
+      </button>
+
+      {/* Retângulo para a mensagem da IA */}
+      <div className="mt-12 w-full max-w-3xl bg-white bg-opacity-10 backdrop-filter backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-purple-500">
+        <h2 className="text-2xl font-semibold mb-4 text-purple-200">A MENSAGEM DAS CARTAS</h2>
+        {isLoading && (
+          <div className="flex items-center justify-center text-lg text-purple-300">
+            <div className="loading-spinner mr-3"></div>
+            O oráculo está meditando...
+          </div>
+        )}
+        {error && (
+          <p className="text-red-300 text-lg text-center font-medium">
+            {error}
+          </p>
+        )}
+        {!isLoading && !error && aiMessage && (
+          <p className="text-lg leading-relaxed text-purple-100 whitespace-pre-wrap">
+            {aiMessage}
+          </p>
+        )}
+        {!isLoading && !error && !aiMessage && (
+          <p className="text-lg leading-relaxed text-purple-300 italic text-center">
+            Clique em "Consultar o Oráculo" para receber a mensagem das cartas.
+          </p>
+        )}
+      </div>
+
+      <footer className="mt-16 text-sm text-purple-300 text-center">
+        <p>Criado com leveza, poesia e lógica para Tiago.</p>
+      </footer>
+    </div>
+  );
+}
+
+export default App;
+
