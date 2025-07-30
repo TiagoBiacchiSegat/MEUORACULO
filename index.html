@@ -1,212 +1,234 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Oráculo de Tarot - 3 Cartas</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Quattrocento&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Quattrocento', serif;
-            background-color: #1a1a2e;
-            background-image: radial-gradient(circle at top right, #4a148c 0%, #1a1a2e 50%);
-            color: #e0e0e0;
+
+import React, { useState } from 'react';
+
+// Componente principal do aplicativo de Tarot
+function App() {
+  // Estado para armazenar a mensagem da inteligência artificial
+  const [aiMessage, setAiMessage] = useState('');
+  // Estado para controlar o carregamento da resposta da IA
+  const [isLoading, setIsLoading] = useState(false);
+  // Estado para armazenar mensagens de erro
+  const [error, setError] = useState('');
+
+  // Nomes das cartas de Tarot para simulação
+  // Em um aplicativo real, você poderia ter mais detalhes ou imagens para cada carta.
+  const tarotCards = [
+    { name: 'Os Amantes', description: 'Escolhas, harmonia, relacionamentos.' },
+    { name: 'O Hierofante', description: 'Tradição, sabedoria, orientação espiritual.' },
+    { name: 'O Imperador', description: 'Autoridade, estrutura, controle.' },
+  ];
+
+  // Função para simular a seleção de cartas aleatórias
+  // Em um jogo real, a seleção poderia ser interativa.
+  const getRandomCards = () => {
+    const shuffled = [...tarotCards].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, 3); // Seleciona 3 cartas aleatoriamente
+  };
+
+  // Função assíncrona para consultar a API do Gemini
+  const consultOracle = async () => {
+    setIsLoading(true); // Ativa o estado de carregamento
+    setAiMessage('');    // Limpa a mensagem anterior
+    setError('');        // Limpa qualquer erro anterior
+
+    const selectedCards = getRandomCards();
+    // Cria o prompt para a IA, pedindo uma interpretação das cartas selecionadas
+    const prompt = `Interprete estas três cartas de Tarot para uma pessoa criativa, autista e disléxica, com uma linguagem clara, objetiva, mas com alma, misturando leveza, poesia e lógica. As cartas são: ${selectedCards[0].name}, ${selectedCards[1].name}, e ${selectedCards[2].name}. Fale sobre o significado geral e como elas se conectam para oferecer um conselho ou reflexão.`;
+
+    // Configuração do payload para a chamada da API
+    const payload = {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: "text/plain", // Esperamos uma resposta de texto simples
+      }
+    };
+
+    // A chave da API é fornecida automaticamente pelo ambiente Canvas
+    const apiKey = "";
+    // URL da API do Gemini para geração de conteúdo
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+    // Tenta fazer a chamada da API com tratamento de erros e retentativas
+    let retries = 0;
+    const maxRetries = 3;
+    const baseDelay = 1000; // 1 segundo
+
+    while (retries < maxRetries) {
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        // Verifica se a resposta da rede foi bem-sucedida
+        if (!response.ok) {
+          throw new Error(`Erro HTTP: ${response.status}`);
         }
-        h1, h2 {
-            font-family: 'Cinzel', serif;
-            font-weight: 700;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+
+        const result = await response.json();
+
+        // Verifica se a resposta da IA contém o texto esperado
+        if (result.candidates && result.candidates.length > 0 &&
+            result.candidates[0].content && result.candidates[0].content.parts &&
+            result.candidates[0].content.parts.length > 0) {
+          setAiMessage(result.candidates[0].content.parts[0].text);
+          break; // Sai do loop se a chamada for bem-sucedida
+        } else {
+          throw new Error('Resposta da API inesperada ou vazia.');
         }
-        .card-container {
+      } catch (err) {
+        console.error('Erro ao consultar o oráculo:', err);
+        setError(`Houve um erro ao contatar o oráculo: ${err.message}. Tentando novamente...`);
+        retries++;
+        if (retries < maxRetries) {
+          await new Promise(res => setTimeout(res, baseDelay * Math.pow(2, retries - 1))); // Atraso exponencial
+        } else {
+          setError('Não foi possível contatar o oráculo após várias tentativas. Por favor, verifique sua conexão e tente novamente.');
+        }
+      } finally {
+        setIsLoading(false); // Desativa o carregamento ao final da tentativa
+      }
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-800 to-indigo-900 text-white flex flex-col items-center justify-center p-4">
+      <script src="https://cdn.tailwindcss.com"></script>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+
+      <style>
+        {`
+          body {
+            font-family: 'Inter', sans-serif;
+          }
+          .card-container {
             perspective: 1000px;
-        }
-        .card {
-            width: 100%;
-            aspect-ratio: 2/3.5;
-            max-width: 200px;
-            transition: transform 0.8s, box-shadow 0.3s;
+          }
+          .card {
+            transition: transform 0.6s;
             transform-style: preserve-3d;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+          }
+          .card:hover {
+            transform: translateY(-10px) rotateY(5deg);
+          }
+          .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+          }
+          .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden; /* Safari */
+            backface-visibility: hidden;
             border-radius: 12px;
-        }
-        .card-placeholder {
-            border: 2px dashed #4a148c;
-            background-color: rgba(255, 255, 255, 0.05);
             display: flex;
             align-items: center;
             justify-content: center;
-        }
-        .card img {
-            border-radius: 12px;
-            border: 2px solid #f0e68c;
-        }
-        .draw-button {
-            transition: all 0.3s ease;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        }
-        .draw-button:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 20px rgba(147, 51, 234, 0.5);
-        }
-        .draw-button:active {
-            transform: translateY(1px);
-        }
-        #interpretation-result {
-            background-color: rgba(0,0,0,0.3);
-            border-left: 4px solid #9333ea;
-        }
-        .loader {
-            border: 4px solid #f3f3f340;
-            border-top: 4px solid #9333ea;
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: white;
+            padding: 1rem;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+          }
+          .card-front {
+            background: linear-gradient(135deg, #6b46c1, #805ad5);
+          }
+          .card-back {
+            background: linear-gradient(135deg, #4c3d8e, #6a5acd);
+            transform: rotateY(180deg);
+          }
+          .loading-spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #fff;
             border-radius: 50%;
             width: 40px;
             height: 40px;
             animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
+          }
+          @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
-        }
-    </style>
-</head>
-<body class="min-h-screen flex flex-col items-center justify-center p-4">
+          }
+        `}
+      </style>
 
-    <div class="w-full max-w-4xl mx-auto text-center">
-        <h1 class="text-4xl md:text-5xl text-purple-300 mb-2">Oráculo de Tarot</h1>
-        <p class="text-purple-200 mb-8">Tire 3 cartas para uma visão sobre seu Passado, Presente e Futuro.</p>
+      <h1 className="text-4xl md:text-5xl font-bold mb-8 text-center drop-shadow-lg">
+        Seu Oráculo de Tarot
+      </h1>
 
-        <!-- Área para exibir as cartas sorteadas -->
-        <div id="cards-display" class="grid grid-cols-3 gap-4 md:gap-8 mb-8 min-h-[250px] md:min-h-[350px] items-center">
-            <div class="text-center">
-                <h2 class="text-xl mb-2 text-purple-300">Passado</h2>
-                <div id="card1" class="card-container mx-auto"><div class="card card-placeholder"><span class="text-purple-400">I</span></div></div>
+      {/* Seção das cartas de Tarot */}
+      <div className="flex flex-wrap justify-center gap-6 mb-10">
+        {tarotCards.map((card, index) => (
+          <div key={index} className="card-container w-40 h-60 md:w-48 md:h-72 rounded-xl shadow-xl transform hover:scale-105 transition-transform duration-300">
+            <div className="card">
+              <div className="card-front">
+                {/* Placeholder para a imagem da carta */}
+                <img
+                  src={`https://placehold.co/120x180/6b46c1/ffffff?text=${card.name.replace(/ /g, '+')}`}
+                  alt={card.name}
+                  className="rounded-lg shadow-md"
+                  onError={(e) => { e.target.onerror = null; e.target.src = `https://placehold.co/120x180/6b46c1/ffffff?text=Carta+${index + 1}`; }}
+                />
+              </div>
+              {/* Você pode adicionar um verso da carta se quiser */}
+              {/* <div className="card-back">
+                Verso da Carta
+              </div> */}
             </div>
-            <div class="text-center">
-                <h2 class="text-xl mb-2 text-purple-300">Presente</h2>
-                <div id="card2" class="card-container mx-auto"><div class="card card-placeholder"><span class="text-purple-400">II</span></div></div>
-            </div>
-            <div class="text-center">
-                <h2 class="text-xl mb-2 text-purple-300">Futuro</h2>
-                <div id="card3" class="card-container mx-auto"><div class="card card-placeholder"><span class="text-purple-400">III</span></div></div>
-            </div>
-        </div>
+          </div>
+        ))}
+      </div>
 
-        <!-- Botão para sortear -->
-        <button id="draw-button" class="draw-button bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-full text-lg shadow-lg">
-            Consultar o Oráculo
-        </button>
+      {/* Botão para consultar o oráculo */}
+      <button
+        onClick={consultOracle}
+        disabled={isLoading}
+        className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transform transition-all duration-300 ease-in-out
+                   hover:scale-105 hover:shadow-2xl focus:outline-none focus:ring-4 focus:ring-purple-500 focus:ring-opacity-75
+                   disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+      >
+        {isLoading && <div className="loading-spinner w-5 h-5 border-white border-t-transparent animate-spin"></div>}
+        {isLoading ? 'Consultando...' : 'Consultar o Oráculo'}
+      </button>
 
-        <!-- Área para a interpretação -->
-        <div id="interpretation" class="mt-8 text-left w-full max-w-3xl mx-auto hidden">
-            <h2 class="text-2xl text-purple-300 mb-4">A Mensagem das Cartas</h2>
-            <div id="interpretation-result" class="p-6 rounded-lg text-lg leading-relaxed">
-                <!-- O resultado da interpretação aparecerá aqui -->
-            </div>
-        </div>
-        
-        <!-- Indicador de Carregamento -->
-        <div id="loader" class="mt-8 hidden">
-            <div class="loader mx-auto"></div>
-            <p class="mt-2 text-purple-300">O oráculo está interpretando sua tiragem...</p>
-        </div>
+      {/* Retângulo para a mensagem da IA */}
+      <div className="mt-12 w-full max-w-3xl bg-white bg-opacity-10 backdrop-filter backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-purple-500">
+        <h2 className="text-2xl font-semibold mb-4 text-purple-200">A MENSAGEM DAS CARTAS</h2>
+        {isLoading && (
+          <div className="flex items-center justify-center text-lg text-purple-300">
+            <div className="loading-spinner mr-3"></div>
+            O oráculo está meditando...
+          </div>
+        )}
+        {error && (
+          <p className="text-red-300 text-lg text-center font-medium">
+            {error}
+          </p>
+        )}
+        {!isLoading && !error && aiMessage && (
+          <p className="text-lg leading-relaxed text-purple-100 whitespace-pre-wrap">
+            {aiMessage}
+          </p>
+        )}
+        {!isLoading && !error && !aiMessage && (
+          <p className="text-lg leading-relaxed text-purple-300 italic text-center">
+            Clique em "Consultar o Oráculo" para receber a mensagem das cartas.
+          </p>
+        )}
+      </div>
 
+      <footer className="mt-16 text-sm text-purple-300 text-center">
+        <p>Criado com leveza, poesia e lógica para Tiago.</p>
+      </footer>
     </div>
+  );
+}
 
-    <script>
-        const drawButton = document.getElementById('draw-button');
-        const cardsDisplay = document.getElementById('cards-display');
-        const interpretationDiv = document.getElementById('interpretation');
-        const interpretationResult = document.getElementById('interpretation-result');
-        const loader = document.getElementById('loader');
-
-        // --- Banco de Dados dos 22 Arcanos Maiores ---
-        const majorArcana = [
-            { id: 0, name: "O Louco", image: "https://www.sacred-texts.com/tarot/pkt/img/ar00.jpg", meaning: "Início de uma jornada, espontaneidade, fé, inocência e potencial ilimitado. Um convite para dar um salto de fé no desconhecido." },
-            { id: 1, name: "O Mago", image: "https://www.sacred-texts.com/tarot/pkt/img/ar01.jpg", meaning: "Poder, habilidade, concentração e manifestação. Possui todas as ferramentas para criar sua própria realidade. É hora de agir." },
-            { id: 2, name: "A Sacerdotisa", image: "https://www.sacred-texts.com/tarot/pkt/img/ar02.jpg", meaning: "Intuição, mistério, subconsciente e sabedoria oculta. Um chamado para olhar para dentro e confiar na sua voz interior." },
-            { id: 3, name: "A Imperatriz", image: "https://www.sacred-texts.com/tarot/pkt/img/ar03.jpg", meaning: "Fertilidade, abundância, criatividade e conexão com a natureza. Um momento de nutrir a si mesmo e aos seus projetos." },
-            { id: 4, name: "O Imperador", image: "https://www.sacred-texts.com/tarot/pkt/img/ar04.jpg", meaning: "Autoridade, estrutura, estabilidade e liderança. Um chamado para a disciplina e o controle para construir bases sólidas." },
-            { id: 5, name: "O Hierofante", image: "https://www.sacred-texts.com/tarot/pkt/img/ar05.jpg", meaning: "Tradição, instituições, educação e crenças. Busca por conhecimento através de métodos convencionais ou de um mentor." },
-            { id: 6, name: "Os Enamorados", image: "https://www.sacred-texts.com/tarot/pkt/img/ar06.jpg", meaning: "Escolhas, união, relacionamentos e harmonia. Aponta para uma decisão importante, alinhada com seus valores mais profundos." },
-            { id: 7, name: "O Carro", image: "https://www.sacred-texts.com/tarot/pkt/img/ar07.jpg", meaning: "Vitória, determinação, autocontrole e avanço. Com foco e disciplina, o sucesso em seus objetivos é certo." },
-            { id: 8, name: "A Força", image: "https://www.sacred-texts.com/tarot/pkt/img/ar08.jpg", meaning: "Coragem, paciência, compaixão e domínio interior. A verdadeira força não vem da agressividade, mas do autocontrole gentil." },
-            { id: 9, name: "O Eremita", image: "https://www.sacred-texts.com/tarot/pkt/img/ar09.jpg", meaning: "Introspecção, sabedoria e busca interior. Um momento de se afastar do mundo para encontrar a luz da sua própria verdade." },
-            { id: 10, name: "A Roda da Fortuna", image: "https://www.sacred-texts.com/tarot/pkt/img/ar10.jpg", meaning: "Mudanças, ciclos, destino e pontos de virada. A vida está em constante movimento, trazendo novas oportunidades e desafios." },
-            { id: 11, name: "A Justiça", image: "https://www.sacred-texts.com/tarot/pkt/img/ar11.jpg", meaning: "Equilíbrio, verdade, clareza e causa e efeito. É hora de tomar decisões justas, pois a verdade virá à tona." },
-            { id: 12, name: "O Enforcado", image: "https://www.sacred-texts.com/tarot/pkt/img/ar12.jpg", meaning: "Sacrifício, nova perspectiva e rendição. É preciso fazer uma pausa e ver as coisas por um ângulo diferente para progredir." },
-            { id: 13, name: "A Morte", image: "https://www.sacred-texts.com/tarot/pkt/img/ar13.jpg", meaning: "Fim de um ciclo, transformação e renovação. Um final necessário para que algo novo e melhor possa começar." },
-            { id: 14, name: "A Temperança", image: "https://www.sacred-texts.com/tarot/pkt/img/ar14.jpg", meaning: "Equilíbrio, moderação, paciência e harmonia. Um convite para encontrar o meio-termo e integrar opostos em sua vida." },
-            { id: 15, name: "O Diabo", image: "https://www.sacred-texts.com/tarot/pkt/img/ar15.jpg", meaning: "Apego, materialismo, vícios e ilusão. Revela padrões negativos e apegos que precisam ser confrontados para alcançar a liberdade." },
-            { id: 16, name: "A Torre", image: "https://www.sacred-texts.com/tarot/pkt/img/ar16.jpg", meaning: "Mudança súbita, revelação e quebra de estruturas. Uma destruição necessária de falsas crenças para construir algo mais verdadeiro." },
-            { id: 17, name: "A Estrela", image: "https://www.sacred-texts.com/tarot/pkt/img/ar17.jpg", meaning: "Esperança, inspiração, cura e renovação. Após a tempestade, um momento de paz, fé e otimismo no futuro." },
-            { id: 18, name: "A Lua", image: "https://www.sacred-texts.com/tarot/pkt/img/ar18.jpg", meaning: "Ilusão, medo, intuição e inconsciente. Nem tudo é o que parece. É preciso confiar na intuição para navegar pela incerteza." },
-            { id: 19, name: "O Sol", image: "https://www.sacred-texts.com/tarot/pkt/img/ar19.jpg", meaning: "Alegria, sucesso, vitalidade e clareza. Um período de grande felicidade, otimismo e realização." },
-            { id: 20, name: "O Julgamento", image: "https://www.sacred-texts.com/tarot/pkt/img/ar20.jpg", meaning: "Renascimento, despertar e chamado. Um momento de avaliação e perdão, levando a um novo nível de consciência." },
-            { id: 21, name: "O Mundo", image: "https://www.sacred-texts.com/tarot/pkt/img/ar21.jpg", meaning: "Conclusão, realização, integração e plenitude. O fim bem-sucedido de uma jornada, alcançando um estado de totalidade." }
-        ];
-
-        drawButton.addEventListener('click', handleDraw);
-
-        function handleDraw() {
-            interpretationDiv.classList.add('hidden');
-            loader.classList.remove('hidden');
-            drawButton.disabled = true;
-            drawButton.classList.add('opacity-50', 'cursor-not-allowed');
-
-            const shuffled = [...majorArcana].sort(() => 0.5 - Math.random());
-            const drawnCards = shuffled.slice(0, 3);
-            
-            displayDrawnCards(drawnCards);
-            generateInterpretation(drawnCards);
-        }
-
-        function displayDrawnCards(cards) {
-            for (let i = 0; i < cards.length; i++) {
-                const cardDiv = document.getElementById(`card${i + 1}`);
-                const card = cards[i];
-                cardDiv.innerHTML = `
-                    <div class="card">
-                        <img src="${card.image}" alt="${card.name}" class="w-full h-full object-cover">
-                    </div>
-                `;
-            }
-        }
-
-        async function generateInterpretation(cards) {
-            try {
-                // A URL agora aponta para a nossa função "ajudante" no Netlify
-                const response = await fetch('/.netlify/functions/getInterpretation', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ cards: cards }) // Enviamos as cartas sorteadas
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Erro na função do servidor: ${response.statusText}`);
-                }
-
-                const result = await response.json();
-                
-                const formattedText = result.interpretation
-                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                    .replace(/\n/g, '<br>');
-
-                interpretationResult.innerHTML = formattedText;
-
-            } catch (error) {
-                console.error("Erro ao gerar interpretação:", error);
-                interpretationResult.innerHTML = "Houve um erro ao contatar o oráculo. Por favor, verifique sua conexão e tente novamente.";
-            } finally {
-                loader.classList.add('hidden');
-                interpretationDiv.classList.remove('hidden');
-                drawButton.disabled = false;
-                drawButton.classList.remove('opacity-50', 'cursor-not-allowed');
-            }
-        }
-    </script>
-</body>
-</html>
+export default App;
 
